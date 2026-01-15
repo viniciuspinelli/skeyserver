@@ -1,0 +1,18 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Pinegrow backups
+_pgbackup/
+_pginfo/
+
+# Local config
+*.log
+.env.local
+
+# Documentation
+README.md

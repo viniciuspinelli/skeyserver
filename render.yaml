@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: skeyserver
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 80
