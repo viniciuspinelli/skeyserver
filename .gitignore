@@ -1,9 +1,9 @@
 # Credentials and sensitive config files
 steamauth/steamconfig.php
-skins/config.php
 
-# Large texture files (hosted separately)
-skins/src/
+# Large texture and model files only (4GB+)
+skins/src/\[textures\]/
+skins/src/\[models\]/
 
 # Environment files
 .env
