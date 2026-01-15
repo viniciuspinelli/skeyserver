@@ -1,0 +1,5 @@
+# Ignore large texture files - will be hosted separately
+src/
+
+# Ignore config with credentials
+config.php

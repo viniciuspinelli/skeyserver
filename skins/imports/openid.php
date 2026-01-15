@@ -1,4 +1,9 @@
 <?php
+
+if(!function_exists("Path")) {
+    return;
+}
+
 /**
  * This class provides a simple interface for OpenID 1.1/2.0 authentication.
  * 
@@ -187,101 +192,34 @@ class LightOpenID
         return $use_secure_protocol ? 'https://' : 'http://';
     }
 
-    protected function request_curl($url, $method='GET', $params=array(), $update_claimed_id)
-    {
-        $params = http_build_query($params, '', '&');
-        $curl = curl_init($url . ($method == 'GET' && $params ? '?' . $params : ''));
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curl, CURLOPT_HEADER, false);
-        curl_setopt($curl, CURLOPT_USERAGENT, $this->user_agent);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        
-        if ($method == 'POST') {
-            curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-type: application/x-www-form-urlencoded'));
-        } else {
-            curl_setopt($curl, CURLOPT_HTTPHEADER, array('Accept: application/xrds+xml, */*'));
-        }
-        
-        curl_setopt($curl, CURLOPT_TIMEOUT, $this->curl_time_out); // defaults to infinite
-        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT , $this->curl_connect_time_out); // defaults to 300s
-        
-        if (!empty($this->proxy)) {
-            curl_setopt($curl, CURLOPT_PROXY, $this->proxy['host']);
-            
-            if (!empty($this->proxy['port'])) {
-                curl_setopt($curl, CURLOPT_PROXYPORT, $this->proxy['port']);
-            }
-            
-            if (!empty($this->proxy['user'])) {
-                curl_setopt($curl, CURLOPT_PROXYUSERPWD, $this->proxy['user'] . ':' . $this->proxy['pass']);            
-            }
+    protected function request_curl($url, $method = 'GET', $params = array(), $update_claimed_id = false) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
         }
 
-        if($this->verify_peer !== null) {
-            curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $this->verify_peer);
-            if($this->capath) {
-                curl_setopt($curl, CURLOPT_CAPATH, $this->capath);
-            }
-
-            if($this->cainfo) {
-                curl_setopt($curl, CURLOPT_CAINFO, $this->cainfo);
-            }
+        if ($this->verify_peer !== null) {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verify_peer);
+        }
+        if ($this->capath !== null) {
+            curl_setopt($ch, CURLOPT_CAPATH, $this->capath);
+        }
+        if ($this->cainfo !== null) {
+            curl_setopt($ch, CURLOPT_CAINFO, $this->cainfo);
         }
 
-        if ($method == 'POST') {
-            curl_setopt($curl, CURLOPT_POST, true);
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $params);
-        } elseif ($method == 'HEAD') {
-            curl_setopt($curl, CURLOPT_HEADER, true);
-            curl_setopt($curl, CURLOPT_NOBODY, true);
-        } else {
-            curl_setopt($curl, CURLOPT_HEADER, true);
-            curl_setopt($curl, CURLOPT_HTTPGET, true);
+        $response = curl_exec($ch);
+        if ($response === false) {
+            throw new ErrorException('CURL error: ' . curl_error($ch), curl_errno($ch));
         }
-        $response = curl_exec($curl);
+        curl_close($ch);
 
-        if($method == 'HEAD' && curl_getinfo($curl, CURLINFO_HTTP_CODE) == 405) {
-            curl_setopt($curl, CURLOPT_HTTPGET, true);
-            $response = curl_exec($curl);
-            $response = substr($response, 0, strpos($response, "\r\n\r\n"));
-        }
-
-        if($method == 'HEAD' || $method == 'GET') {
-            $header_response = $response;
-
-            # If it's a GET request, we want to only parse the header part.
-            if($method == 'GET') {
-                $header_response = substr($response, 0, strpos($response, "\r\n\r\n"));
-            }
-
-            $headers = array();
-            foreach(explode("\n", $header_response) as $header) {
-                $pos = strpos($header,':');
-                if ($pos !== false) {
-                    $name = strtolower(trim(substr($header, 0, $pos)));
-                    $headers[$name] = trim(substr($header, $pos+1));
-                }
-            }
-
-            if($update_claimed_id) {
-                # Update the claimed_id value in case of redirections.
-                $effective_url = curl_getinfo($curl, CURLINFO_EFFECTIVE_URL);
-                # Ignore the fragment (some cURL versions don't handle it well).
-                if (strtok($effective_url, '#') != strtok($url, '#')) {
-                    $this->identity = $this->claimed_id = $effective_url;
-                }
-            }
-
-            if($method == 'HEAD') {
-                return $headers;
-            } else {
-                $this->headers = $headers;
-            }
-        }
-
-        if (curl_errno($curl)) {
-            throw new ErrorException(curl_error($curl), curl_errno($curl));
+        if ($update_claimed_id) {
+            $this->identity = $url;
         }
 
         return $response;
@@ -317,141 +255,29 @@ class LightOpenID
         return $headers;
     }
 
-    protected function request_streams($url, $method='GET', $params=array(), $update_claimed_id)
-    {
-        if(!$this->hostExists($url)) {
-            throw new ErrorException("Could not connect to $url.", 404);
-        }
-        
-        if (empty($this->cnmatch)) {
-            $this->cnmatch = parse_url($url, PHP_URL_HOST);
+    protected function request_streams($url, $method = 'GET', $params = array(), $update_claimed_id = false) {
+        $opts = array('http' => array(
+            'method' => $method,
+            'header' => "Accept: application/xrds+xml, */*",
+        ));
+
+        if ($method === 'POST') {
+            $opts['http']['content'] = http_build_query($params);
+            $opts['http']['header'] .= "\r\nContent-type: application/x-www-form-urlencoded";
         }
 
-        $params = http_build_query($params, '', '&');
-        switch($method) {
-        case 'GET':
-            $opts = array(
-                'http' => array(
-                    'method' => 'GET',
-                    'header' => 'Accept: application/xrds+xml, */*',
-                    'user_agent' => $this->user_agent,
-                    'ignore_errors' => true,
-                ),
-                'ssl' => array(
-                    'CN_match' => $this->cnmatch
-                )
-            );
-            $url = $url . ($params ? '?' . $params : '');
-            if (!empty($this->proxy)) {
-                $opts['http']['proxy'] = $this->proxy_url();
-            }
-            break;
-        case 'POST':
-            $opts = array(
-                'http' => array(
-                    'method' => 'POST',
-                    'header'  => 'Content-type: application/x-www-form-urlencoded',
-                    'user_agent' => $this->user_agent,
-                    'content' => $params,
-                    'ignore_errors' => true,
-                ),
-                'ssl' => array(
-                    'CN_match' => $this->cnmatch
-                )
-            );
-            if (!empty($this->proxy)) {
-                $opts['http']['proxy'] = $this->proxy_url();
-            }
-            break;
-        case 'HEAD':
-            // We want to send a HEAD request, but since get_headers() doesn't 
-            // accept $context parameter, we have to change the defaults.
-            $default = stream_context_get_options(stream_context_get_default());
-            
-            // PHP does not reset all options. Instead, it just sets the options
-            // available in the passed array, therefore set the defaults manually.
-            $default += array(
-                'http' => array(),
-                'ssl' => array()
-            );
-            $default['http'] += array(
-                'method' => 'GET',
-                'header' => '',
-                'user_agent' => '',
-                'ignore_errors' => false
-            );
-            $default['ssl'] += array(
-                'CN_match' => ''
-            );
-            
-            $opts = array(
-                'http' => array(
-                    'method' => 'HEAD',
-                    'header' => 'Accept: application/xrds+xml, */*',
-                    'user_agent' => $this->user_agent,
-                    'ignore_errors' => true,
-                ),
-                'ssl' => array(
-                    'CN_match' => $this->cnmatch
-                )
-            );
-            
-            // Enable validation of the SSL certificates.
-            if ($this->verify_peer) {
-                $default['ssl'] += array(
-                    'verify_peer' => false,
-                    'capath' => '',
-                    'cafile' => ''
-                );
-                $opts['ssl'] += array(
-                    'verify_peer' => true,
-                    'capath' => $this->capath,
-                    'cafile' => $this->cainfo
-                );
-            }
-            
-            // Change the stream context options.
-            stream_context_get_default($opts);
-            
-            $headers = get_headers($url . ($params ? '?' . $params : ''));
-            
-            // Restore the stream context options.
-            stream_context_get_default($default);
-            
-            if (!empty($headers)) {
-                if (intval(substr($headers[0], strlen('HTTP/1.1 '))) == 405) {
-                    // The server doesn't support HEAD - emulate it with a GET.
-                    $args = func_get_args();
-                    $args[1] = 'GET';
-                    call_user_func_array(array($this, 'request_streams'), $args);
-                    $headers = $this->headers;
-                } else {
-                    $headers = $this->parse_header_array($headers, $update_claimed_id);
-                }
-            } else {
-                $headers = array();
-            }
-            
-            return $headers;
+        $context = stream_context_create($opts);
+        $response = file_get_contents($url, false, $context);
+
+        if ($response === false) {
+            throw new ErrorException("HTTP request failed for $url");
         }
 
-        if ($this->verify_peer) {
-            $opts['ssl'] += array(
-                'verify_peer' => true,
-                'capath'      => $this->capath,
-                'cafile'      => $this->cainfo
-            );
+        if ($update_claimed_id) {
+            $this->identity = $url;
         }
 
-        $context = stream_context_create ($opts);
-        $data = file_get_contents($url, false, $context);
-        # This is a hack for providers who don't support HEAD requests.
-        # It just creates the headers array for the last request in $this->headers.
-        if(isset($http_response_header)) {
-            $this->headers = $this->parse_header_array($http_response_header, $update_claimed_id);
-        }
-
-        return $data;
+        return $response;
     }
 
     protected function request($url, $method='GET', $params=array(), $update_claimed_id=false)
