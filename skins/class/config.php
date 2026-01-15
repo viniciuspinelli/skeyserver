@@ -9,7 +9,7 @@ define('DB_PASS', 'oUvojx08n6ajNSqNHJRB');
 
 define('WEB_STYLE_DARK', true);
 
-define('STEAM_API_KEY', ''); // Coloque sua Steam API Key aqui - https://steamcommunity.com/dev/apikey
-define('STEAM_DOMAIN_NAME', ''); // Seu domínio (ex: skeyserver.onrender.com)
+define('STEAM_API_KEY', '1CE99BAC9F01A3E49543DE79D889A38D');
+define('STEAM_DOMAIN_NAME', 'skeyserver.onrender.com');
 define('STEAM_LOGOUT_PAGE', 'index.php');
 define('STEAM_LOGIN_PAGE', 'index.php');
