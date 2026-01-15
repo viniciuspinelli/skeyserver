@@ -29,12 +29,14 @@ $Website_Settings = [
 ];
 
 // Load from environment variables (Render) or use defaults
+// Para Render: configure as variáveis de ambiente no dashboard
+// DB_HOST=177.45.251.107, DB_NAME=weaponpaints, DB_USER=wpuser, DB_PASS=wp123456
 $SteamAPI_KEY = getenv('STEAM_API_KEY') ?: "YOUR_STEAM_API_KEY";
 
 $DatabaseInfo = [
-    "host" => getenv('DB_HOST') ?: "localhost",
+    "host" => getenv('DB_HOST') ?: "177.45.251.107",
     "database" => getenv('DB_NAME') ?: "weaponpaints",
-    "username" => getenv('DB_USER') ?: "root",
-    "password" => getenv('DB_PASS') ?: "",
+    "username" => getenv('DB_USER') ?: "wpuser",
+    "password" => getenv('DB_PASS') ?: "wp123456",
     "port" => getenv('DB_PORT') ?: "3306"
 ];
